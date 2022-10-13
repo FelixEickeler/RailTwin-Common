@@ -1,0 +1,13 @@
+ply
+format ascii 1.0
+comment dialect=tum_ply
+comment metadata:{"test_string": "string", "test_int": 1, "test_float": 1.0, "test_numpy": [1, 2, 3], "test_list": [1, 2, 3], "test_dict": {}}
+comment categories:{}
+element vertices 1
+property float x
+property float y
+property float z
+property float intensity
+property int class
+end_header
+0 0 0 0 48

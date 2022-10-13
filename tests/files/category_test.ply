@@ -1,0 +1,37 @@
+ply
+format ascii 1.0
+comment dialect=tum_ply
+comment metadata:{}
+comment categories:{"0": "erdauftrag", "1": "decke", "2": "tragschicht", "3": "bettung", "4": "planumsschutz", "5": "frostschutz", "6": "mutterbodenauftrag", "7": "hinterfuellung", "8": "schiene", "9": "schwelle", "10": "kastenrinne", "11": "kastenrinne_deckel", "12": "kastenrinne_fundament", "13": "kantenstein", "14": "fundament", "15": "sauberkeitsschicht", "16": "mast", "17": "gruendung", "18": "ausleger", "19": "fahrdraht", "20": "gelaende", "21": "beleuchtungsmast", "22": "fahrgastinformation", "23": "ticketautomat", "24": "wetterschutzhaus"}
+element vertices 25
+property float x
+property float y
+property float z
+property float intensity
+property int class
+end_header
+0 0 0 0 0
+0 0 0 0 1
+0 0 0 0 2
+0 0 0 0 3
+0 0 0 0 4
+0 0 0 0 5
+0 0 0 0 6
+0 0 0 0 7
+0 0 0 0 8
+0 0 0 0 9
+0 0 0 0 10
+0 0 0 0 11
+0 0 0 0 12
+0 0 0 0 13
+0 0 0 0 14
+0 0 0 0 15
+0 0 0 0 16
+0 0 0 0 17
+0 0 0 0 18
+0 0 0 0 19
+0 0 0 0 20
+0 0 0 0 21
+0 0 0 0 22
+0 0 0 0 23
+0 0 0 0 24

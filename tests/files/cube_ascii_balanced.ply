@@ -1,0 +1,23 @@
+ply
+format ascii 1.0
+comment dialect=tum_ply
+comment metadata:{"test_string": "string", "test_int": 1, "test_float": 1.0, "test_numpy": [1, 2, 3], "test_list": [1, 2, 3], "test_dict": {}}
+comment categories:{}
+element offset 1
+property double x
+property double y
+property double z
+element vertices 8
+property float x
+property float y
+property float z
+end_header
+0.5 0.5 0.5
+-0.5 -0.5 -0.5
+-0.5 -0.5 0.5
+-0.5 0.5 0.5
+-0.5 0.5 -0.5
+0.5 -0.5 -0.5
+0.5 -0.5 0.5
+0.5 0.5 0.5
+0.5 0.5 -0.5
