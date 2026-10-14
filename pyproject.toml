@@ -33,7 +33,11 @@ packages = [
     "railtwin_common.algorithms",
     "railtwin_common.utils",
     "railtwin_common.utils.plot",
+    "railtwin_common.labels",
 ]
+
+[tool.setuptools.package-data]
+"railtwin_common.labels" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

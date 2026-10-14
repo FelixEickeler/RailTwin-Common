@@ -51,6 +51,19 @@ logger = railtwin_common.common.logger.RailTwinLogger.create()   # a logging.Log
 RailTwinLogger.register_file_logger(Path("logs"))                 # optional: also into logs/<date>-RailTwin.log
 ```
 
+### Labels
+Point clouds keep fine component labels; a mapping turns them into the classes a task needs, at load time.
+`labels/obm_mapping.json` (from RailTwin-Virtualizer `ecppm2022_simple_mapping.json`, component ids made unique) has
+64 `component_labels`, the `systems` they belong to, `system_labels`, and the names used in design models
+(`synthetic`) and annotations (`physical`).
+```python
+from railtwin_common.labels import LabelMapping
+mapping = LabelMapping.load()                                    # labels/obm_mapping.json, or any path
+system_ids = mapping.to_systems(component_ids, default="instance") # numpy lookup; default for unmapped components
+mapping.component_id("Schwelle", "synthetic")                     # id of a source name
+```
+Without `default`, `to_systems` raises and lists the components that have no system.
+
 ### utilites & plotting
 1) RailTwin-Common comes with a tool to divide any supported infrastructure asset in subassets. This tool resides in utils track_divider.py
     ```
