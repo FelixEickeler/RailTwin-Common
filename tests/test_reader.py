@@ -1,11 +1,11 @@
 import json
 import unittest
 import numpy as np
-from common.io import read
+from railtwin_common.common.io import read
 from pathlib import Path
 
-from tests.files.cube import cube_test
-from tests.helpers import balance_pointcloud
+from files.cube import cube_test
+from helpers import balance_pointcloud
 
 test_folder = Path(__file__).parent / "files"
 
@@ -44,8 +44,8 @@ class TestReader(unittest.TestCase):
             categories = json.load(json_file)
         point_cloud = read(test_folder / "category_test.ply")
         for mname, mdata in categories.items():
-            self.assertTrue(mname in point_cloud.attrs["categories"])
-            self.assertEqual(mdata, point_cloud.attrs["categories"][mname])
+            self.assertTrue(mname in point_cloud.attrs["category_mapping"])
+            self.assertEqual(mdata, point_cloud.attrs["category_mapping"][mname])
 
     def test_feather(self):
         data = read(test_folder / "cube.feather")

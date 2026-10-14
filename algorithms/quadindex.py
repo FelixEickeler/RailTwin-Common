@@ -67,18 +67,20 @@ class QuadIndex:
         # 5 create hashes, sort by them, and group again
         points["coord_hash"] = cut_x.to_numpy() * 1e12 + cut_y.to_numpy() * 1e6 + (1e6 + points["x"].to_numpy())
         points.sort_values(by=["coord_hash"], inplace=True, ignore_index=True)
-        hash_bins = [x * 1e12 + y * 1e6 + 1e6 for x in x_labels for y in y_labels]
+        # The grid holds the end of every cell (= start of the next cell (x, y + 1)), see get_begin_end
+        cell_ends = [x * 1e12 + (y + 1) * 1e6 + 1e6 for x in x_labels for y in y_labels]
         qi = QuadIndex()
         qi._sorted_points_ref = points
-        qi._index_grid = np.searchsorted(points["coord_hash"], hash_bins, side="left").reshape([len(x_labels), len(y_labels)])
+        qi._index_grid = np.searchsorted(points["coord_hash"], cell_ends, side="left").reshape([len(x_labels), len(y_labels)])
         qi.cells = qi._index_grid.size
-        iz_0 = distance * np.floor(points.iloc[0]["z"] / distance)
-        iz_n = distance * np.ceil(points.iloc[-1]["z"] / distance)
+        # z range of the cloud (0 for 2D points)
+        iz_0 = distance * np.floor(points["z"].min() / distance) if "z" in points else 0.0
+        iz_n = distance * np.ceil(points["z"].max() / distance) if "z" in points else 0.0
         qi.min = np.array([ix_0, iy_0, iz_0])
         qi.max = np.array([ix_n, iy_n, iz_n])
         qi.spacing = distance
         if not debug:
-            points.drop(["coord_hash"], axis=1)
+            points.drop(columns=["coord_hash"], inplace=True)
 
         return qi
 

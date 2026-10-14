@@ -9,13 +9,13 @@ import numpy as np
 import pandas
 from scipy import interpolate
 from sklearn.neighbors import KDTree
-from python.common.shared.common.io import read
+from ..common.io import read
 
-import warnings
 
-with warnings.catch_warnings():
-    warnings.simplefilter('ignore', category=DeprecationWarning)
-    from numpy.core.umath_tests import inner1d
+
+def inner1d(a, b):
+    """Row-wise dot product (numpy.core.umath_tests.inner1d was removed in numpy 2)."""
+    return np.einsum('ij,ij->i', a, b)
 
 
 def point2alignment_properties(point_cloud: pandas.DataFrame, refined_alignment: pandas.DataFrame, inplace=False):

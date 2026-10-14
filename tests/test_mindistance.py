@@ -7,8 +7,8 @@
 # TODO FIX THIS SO its a test
 from pathlib import Path
 import pandas
-from python.common.shared.algorithms.minimal_distance import point2alignment_properties
-from python.common.shared.common.io import read
+from railtwin_common.algorithms.minimal_distance import point2alignment_properties
+from railtwin_common.common.io import read
 
 if __name__ == '__main__':
     raise NotImplemented

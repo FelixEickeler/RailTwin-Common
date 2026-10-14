@@ -1,6 +1,5 @@
-from ..augmentations import TA, UnpackBinary, TrueValue
+from ..augmentations import TA, UnpackBinary, Normalize
 from ..data_shaping import data_augmentations
-from ..header import HeaderGenerator, _allowed_headers
 from ..io_options import IOOptions
 from ...logger import RailTwinLogger
 from pathlib import Path
@@ -13,71 +12,54 @@ logger = RailTwinLogger.create()
 
 
 def read_laz(input_path: Path):
+    """
+    Read a .las / .laz file (point formats 0-5) into a DataFrame with the internal column names (see header.py).
+    The points are centred (local system), the full offset to world coordinates is in attrs["metadata"]["offset"].
+    Fields that are constant over the whole cloud at their default value are left out.
+    """
     logger.info("Reading points from {}".format(input_path))
     las = laspy.read(input_path)
-    header = HeaderGenerator()
-    ignore_default = False
+    if las.point_format.id >= 6:
+        raise NotImplementedError("Only LAS point formats 0-5 are supported")
 
-    #TODO check how to fix this
+    # World coordinates (laspy applies scale and offset), then centred: float32 is not precise enough for them
+    point_cloud = DataFrame({"x": np.asarray(las.x, dtype=np.float64),
+                             "y": np.asarray(las.y, dtype=np.float64),
+                             "z": np.asarray(las.z, dtype=np.float64)})
+    base_options = IOOptions.only_localization()
+    base_options.xyz_accuracy = np.float32
+    data_augmentations(point_cloud, base_options)
 
-    if las.point_format.id < 6:
-        header.add("x").add("y").add("z")
-        # reconstruct points from las format scale(f8) * val(i4) + offset(f8)
-        xyz = np.array([las.X, las.Y, las.Z]).transpose() * las.header.scale
-        point_cloud = DataFrame.from_records(xyz, columns=header.header.keys())
+    # Fill in scalar fields
+    if np.unique(las.intensity).size > 1:
+        point_cloud["intensity"] = TA(np.float32, Normalize()).augment(np.asarray(las.intensity))
 
-        # preset offset
-        # offset = records.fromarrays(las.header.offset, dtype=HeaderGenerator.offset())
-        offset = las.header.offset.view(HeaderGenerator.offset())
-        point_cloud.attrs["offset"] = offset
+    # Bit fields: (las name, internal name, dtype, default value)
+    for las_name, name, dtype, default in [("return_number", "returnNumber", np.uint8, 1),
+                                           ("number_of_returns", "numberOfReturns", np.uint8, 1),
+                                           ("scan_direction_flag", "scan_direction_flag", bool, 0),
+                                           ("edge_of_flight_line", "edge_of_flight_line", bool, 0),
+                                           ("classification", "class", np.uint8, 0),
+                                           ("synthetic", "synthetic", np.uint8, 0),
+                                           ("key_point", "key_point", np.uint8, 0)]:
+        field = las[las_name]
+        values = TA(dtype, UnpackBinary(field.bit_mask)).augment(field.array)
+        if np.unique(values).size > 1 or values[0] != default:
+            point_cloud[name] = values
 
-        # This will also update the offset and center the point  cloud so that min_n == -max_n
-        base_options = IOOptions.only_localization()
-        base_options.xyz_accuracy = np.float32
-        data_augmentations(point_cloud, base_options)
+    for name, dtype in [("user_data", np.uint8), ("point_source_id", np.uint16)]:
+        if np.unique(las[name]).size > 1:
+            point_cloud[name] = np.asarray(las[name], dtype=dtype)
 
-        # Fill in scalar fields
-        if np.unique(las.intensity).size > 1:
-            point_cloud["intensity"] = _allowed_headers["intensity"].augment(las.intensity)
+    # Formats 1, 3, 4, 5: GPS time; 2, 3, 5: colour
+    dimensions = set(las.point_format.dimension_names)
+    if "gps_time" in dimensions:
+        point_cloud["gps_time"] = np.asarray(las.gps_time, dtype=np.float64)
+    if {"red", "green", "blue"} <= dimensions:
+        # LAS stores 16 bit colour, the internal format is 8 bit (some writers store 8 bit values in the 16 bits)
+        shift = 8 if max(int(np.max(las[c])) for c in ("red", "green", "blue")) > 255 else 0
+        for colour in ("red", "green", "blue"):
+            point_cloud[colour] = (np.asarray(las[colour]) >> shift).astype(np.uint8)
 
-        # BitField 1
-        tmp = TA(np.uint8, UnpackBinary(las.return_number.bit_mask)).augment(las.return_number.array)
-        if np.unique(tmp).size > 1 or tmp[0] != 1 or ignore_default:
-            point_cloud["return_number"] = tmp
-        tmp = TA(np.uint8, UnpackBinary(las.number_of_returns.bit_mask)).augment(las.number_of_returns.array)
-        if np.unique(tmp).size > 1 or tmp[0] != 1 or ignore_default:
-            point_cloud["number_of_returns"] = tmp
-        tmp = TA(bool, UnpackBinary(las.scan_direction_flag.bit_mask)).augment(las.scan_direction_flag.array)
-        if np.unique(tmp).size > 1 or tmp[0] != 0 or ignore_default:
-            point_cloud["scan_direction_flag"] = tmp
-        tmp = TA(bool, UnpackBinary(las.edge_of_flight_line.bit_mask)).augment(las.edge_of_flight_line.array)
-        if np.unique(tmp).size > 1 or tmp[0] != 0 or ignore_default:
-            point_cloud["edge_of_flight_line"] = tmp
-
-        # BitField 2
-        tmp = TA(np.uint8, UnpackBinary(las.classification.bit_mask)).augment(las.classification.array)
-        if np.unique(tmp).size > 1 or tmp[0] != 0 or ignore_default:
-            point_cloud["classification"] = tmp
-        tmp = TA(np.uint8, UnpackBinary(las.synthetic.bit_mask)).augment(las.synthetic.array)
-        if np.unique(tmp).size > 1 or tmp[0] != 0 or ignore_default:
-            point_cloud["synthetic"] = tmp
-        tmp = TA(np.uint8, UnpackBinary(las.key_point.bit_mask)).augment(las.key_point.array)
-        if np.unique(tmp).size > 1 or tmp[0] != 0 or ignore_default:
-            point_cloud["key_point"] = tmp
-
-        # additional f6
-        if np.unique(las.user_data).size > 1:
-            point_cloud["user_data"] = TA(np.float16, TrueValue()).augment(las.user_data)
-        if np.unique(las.point_source_id).size > 1:
-            point_cloud["point_source_id"] = TA(np.float16, TrueValue()).augment(las.point_source_id)
-
-        if las.point_format.id >= 1:
-            raise NotImplementedError("This format is present in laspy, but not implemented in this tool !")
-
-        elif las.point_format.id > 0:
-            logger.warn(f"Las format {las.point_format.id} is only supported by base attributes.")
-
-    else:
-        raise NotImplementedError("Only 0-Based las formats are supported")
     logger.info("{} points where added.".format(point_cloud.shape[0]))
     return point_cloud

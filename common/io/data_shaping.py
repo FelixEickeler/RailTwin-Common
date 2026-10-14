@@ -2,92 +2,56 @@ import numpy as np
 from pandas import DataFrame
 from .augmentations import apply_augmentations, TypeAugmentation, LocalSystem, TrueValue, GobalOffset
 from .io_options import IOOptions
-from .header import *
+from .header import HeaderGenerator
 from ..logger import RailTwinLogger
 
 logger = RailTwinLogger.create()
 
 
+def _shift_xyz(dataframe: DataFrame, xyz_dtype, make_shift):
+    """Shift x, y, z (make_shift() gives one augmentation per axis) and add the shift to the metadata offset."""
+    augmentations = {axis: TypeAugmentation(xyz_dtype, make_shift(i)) for i, axis in enumerate("xyz")}
+    apply_augmentations(dataframe, augmentations)
+
+    offset = np.array([tuple(augmentations[axis].augmentation.offset for axis in "xyz")],
+                      dtype=HeaderGenerator.offset())
+    if not np.any(offset.view("3f8")):
+        return
+
+    metadata = dataframe.attrs["metadata"]
+    if "offset" not in metadata:
+        logger.info("Point cloud was shifted by {} (offset)".format(offset))
+        metadata["offset"] = offset
+    else:
+        # The offset is stored as structured array [(x, y, z)] (or a list from older metadata)
+        existing = np.asarray(metadata["offset"])
+        existing = existing.view("3f8").reshape(3) if existing.dtype.names else existing.astype("f8").reshape(3)
+        metadata["offset"] = np.array([tuple(existing + offset.view("3f8").reshape(3))],
+                                      dtype=HeaderGenerator.offset())
+
+
 def data_augmentations(dataframe: DataFrame, options: IOOptions):
+    """
+    Shape the point cloud in place according to the options:
+        intensity == "normalize"  intensity as float32
+        local_system              x, y, z centred, the shift is added to attrs["metadata"]["offset"]
+        shift_system              x, y, z shifted by the given offset (also added to the metadata offset)
+        xyz_accuracy              dtype of x, y, z, e.g. "<f4". None keeps the current dtype (float64 stays float64,
+                                  which georeferenced coordinates need).
+    """
     if "metadata" not in dataframe.attrs:
         dataframe.attrs["metadata"] = {}
 
-    if options.xyz_accuracy:
-        _xyz_dtype = np.dtype(options.xyz_accuracy)
-    else:
-        _xyz_dtype = np.float32
-    # Augmentations: define datatype of x,y,z,intensity -> with TA(type,augment)
-    if "intensity" in dataframe and options.intensity == "normalize":
-        augmentations = {
-            "intensity": TypeAugmentation(np.float32, TrueValue())
-        }
-        apply_augmentations(dataframe, augmentations)
+    xyz_dtype = np.dtype(options.xyz_accuracy) if options.xyz_accuracy else dataframe["x"].dtype
+
+    if "intensity" in dataframe and options.intensity in ("normalize", "normalized"):
+        apply_augmentations(dataframe, {"intensity": TypeAugmentation(np.float32, TrueValue())})
 
     if options.local_system:
-        augmentations = ({
-            "x": TypeAugmentation(_xyz_dtype, LocalSystem()),
-            "y": TypeAugmentation(_xyz_dtype, LocalSystem()),
-            "z": TypeAugmentation(_xyz_dtype, LocalSystem()),
-        })
-        apply_augmentations(dataframe, augmentations)
-
-        offset = np.array([(augmentations["x"].augmentation.offset,
-                            augmentations["y"].augmentation.offset,
-                            augmentations["z"].augmentation.offset)],
-                          dtype=HeaderGenerator.offset())
-        # if offset x^2+y^2+z^2>0 then add offset value to pointcloud.attrs
-        if offset["x"] ** 2 + offset["y"] ** 2 + offset["z"] ** 2 > 0:
-            try:
-                _existing_offset = dataframe.attrs["metadata"]["offset"].view("3f8")
-                _existing_offset += offset.view("3f8")
-
-            except KeyError:
-                logger.info("Point cloud was shifted by {} (offset)".format(offset))
-                dataframe.attrs["metadata"]["offset"] = offset
-            except AttributeError:
-                print(type(dataframe.attrs["metadata"]["offset"]))
-                print(dataframe.attrs["metadata"]["offset"])
-                _existing_offset = np.array(dataframe.attrs["metadata"]["offset"][0], dtype="3f8")
-            except Exception as e:
-                # dataframe.attscandir_supportedrs["offset"] = np.core.records.fromarrays(offset, HeaderGenerator.offset())
-                # print("whyscandir_supported is this such hard thing")
-                _offset = dataframe.attrs["metadata"]["offset"]
-                logger.warn("Offset existed but did not comply to the standard of 3 vector. It is set to 0 !")
-                raise e
+        _shift_xyz(dataframe, xyz_dtype, lambda i: LocalSystem())
 
     if options.shift_system:
-        augmentations = ({
-            "x": TypeAugmentation(_xyz_dtype, GobalOffset(options.shift_system[0])),
-            "y": TypeAugmentation(_xyz_dtype, GobalOffset(options.shift_system[1])),
-            "z": TypeAugmentation(_xyz_dtype, GobalOffset(options.shift_system[2])),
-        })
-        apply_augmentations(dataframe, augmentations)
+        _shift_xyz(dataframe, xyz_dtype, lambda i: GobalOffset(options.shift_system[i]))
 
-        offset = np.array([(augmentations["x"].augmentation.offset,
-                            augmentations["y"].augmentation.offset,
-                            augmentations["z"].augmentation.offset)],
-                          dtype=HeaderGenerator.offset())
-        # if offset x^2+y^2+z^2>0 then add offset value to pointcloud.attrs
-        if offset["x"] ** 2 + offset["y"] ** 2 + offset["z"] ** 2 > 0:
-            try:
-                _existing_offset = dataframe.attrs["metadata"]["offset"].view("3f8")
-                _existing_offset += offset.view("3f8")
-            except KeyError:
-                logger.info("Point cloud was shifted by {} (offset)".format(offset))
-                dataframe.attrs["metadata"]["offset"] = offset
-            except Exception as e:
-                # dataframe.attrs["offset"] = np.core.records.fromarrays(offset, HeaderGenerator.offset())
-                # print("why is this such hard thing")
-
-                _offset = dataframe.attrs["metadata"]["offset"]
-                logger.warn("Offset existed but did not comply to the standard of 3 vector. It is set to 0 !")
-                raise e
-
-    elif dataframe["x"].dtype != _xyz_dtype:
-        # cast to appropriate datatype
-        augmentations = ({
-            "x": TypeAugmentation(_xyz_dtype, TrueValue()),
-            "y": TypeAugmentation(_xyz_dtype, TrueValue()),
-            "z": TypeAugmentation(_xyz_dtype, TrueValue()),
-        })
-        apply_augmentations(dataframe, augmentations)
+    if dataframe["x"].dtype != xyz_dtype:
+        apply_augmentations(dataframe, {axis: TypeAugmentation(xyz_dtype, TrueValue()) for axis in "xyz"})

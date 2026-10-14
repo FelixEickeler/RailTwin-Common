@@ -1,4 +1,4 @@
-from algorithms.quadindex import QuadIndex
+from railtwin_common.algorithms.quadindex import QuadIndex
 import unittest
 import pandas
 import numpy as np
@@ -27,14 +27,14 @@ class TestQuadindex(unittest.TestCase):
     #     self.assertTrue(points.shape[0] == 181)
 
     def test_index(self):
-        points = df
+        points = df.copy()
         distance = 1
 
         quad = QuadIndex.create_quadindex(points, distance)
-        all_points_in_cell = quad.get(x=0, y=1)
-        all_points_in_cell_1 = quad.get(x=0, y=0)
-        all_points_in_cell_2 = quad.get(x=1, y=0)
-        self.assertTrue(2, len(all_points_in_cell))
+        all_points_in_cell = quad.get_ro(x=0, y=1)
+        all_points_in_cell_1 = quad.get_ro(x=0, y=0)
+        all_points_in_cell_2 = quad.get_ro(x=1, y=0)
+        self.assertEqual(2, len(all_points_in_cell))
         self.assertAlmostEqual(all_points_in_cell.iloc[0]["x"], 0.3)
         self.assertAlmostEqual(all_points_in_cell.iloc[0]["y"], 1.3)
         self.assertAlmostEqual(all_points_in_cell_1.iloc[0]["x"], 0.1)

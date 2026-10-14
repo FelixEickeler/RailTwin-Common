@@ -28,4 +28,5 @@ def read_file(input_path: Path):
 
 
 def scandir_supported(src: Path):
-    return [f for f in src.glob("**/*") if f.suffix in registered_reader]
+    """All files below src with a supported suffix (any case, e.g. .ply and .PLY)."""
+    return [f for f in src.glob("**/*") if f.is_file() and f.suffix.lower() in registered_reader]

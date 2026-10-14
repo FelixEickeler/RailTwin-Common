@@ -1,27 +1,26 @@
 ## RailTwin-Common
 ### Setup
-RailTwin-Common (rtc) was tested with python 3.9 and anaconda environment. The requirements are given by the requirements.txt.
-```
-conda env create --file requirements.yml python=3.9
-```
-
-Windows:
-This module relies on spdlog. On Windows this is not available and needs to be installed separately. 
-A version for python 3.9 was compiled and can be found on:
-
-[Precompile spdlog py3.9](https://filedn.eu/l4hiESSdAeuuEoSLE7Uolr4/binary_supply/spdlog.cp39-win_amd64.pyd)
-
-Linux:
-Use the spdlog version from pip. The anaconda package seems broken !
+RailTwin-Common (rtc) is the package `railtwin_common` (Python >= 3.9, numpy 1.22 - 2.x, pandas 1.4 - 2.x).
+Use it as git submodule named `railtwin_common`, or install it:
 ```bash
-pip install pybind11 spdlog
+pip install -e .                    # IO only: numpy, pandas, plyfile, laspy, pyarrow
+pip install -e ".[algorithms,plot]" # also scipy / scikit-learn and matplotlib / plotly
+python -m pytest                    # tests
+```
+```python
+from railtwin_common.common.io import read, write
 ```
 
 ### Common
 
 #### IO - module
-All data will be read to a pandas dataframe with appropriate naming (see common.io._allowed_headers).
-This is a unified interface that can be used in your programming ! 
+All data will be read to a pandas dataframe with appropriate naming (see common/io/header.py). Known
+properties get their internal name and type, other properties are kept as they are.
+This is a unified interface that can be used in your programming !
+
+The writers never change the dataframe they are given. Coordinates keep their type unless `xyz_accuracy` is set
+(e.g. `"<f4"`): float32 is not precise enough for georeferenced coordinates, use `local=True` (centred, the shift
+is stored as `attrs["metadata"]["offset"]`) or keep float64.
 
 Normally operations should be carried out on the data to normalize it. See the options in IOOperations and header.py !
 
@@ -31,10 +30,10 @@ Currently, the RailTwin-Common supports the following formats for reading and wr
 |-----|---------|-------------------------|---------------------|
 | 0   | *.ply | :heavy_check_mark:      | :heavy_check_mark:  |
 | 1   | *.feather | :heavy_check_mark:      | :heavy_check_mark:  |
-| 2   | *.laz | :heavy_check_mark:(1)   | :x: |
+| 2   | *.las / *.laz | :heavy_check_mark:(1)   | :x: |
 | 3   | *.xyz | :heavy_check_mark:(1,2) | :x: |
 
-(1) no metadata can be read
+(1) point formats 0-5, no metadata apart from the offset
 (2) Format must be register, but reader is available
 
 It is possible to register additional reader & writer by adding them to the
@@ -45,11 +44,12 @@ common.io.registered_reader[".xyz"] = common.io.writer.csv.create_csv_reader(Hel
 ```
 
 #### Logger
-RailTwin-Common uses spdlog for logging. The logger can be reused in any part of your code by:
+RailTwin-Common logs with Python's `logging` ("RT-Logger", to stderr). The logger can be reused in any part of
+your code by:
 ```python
-logger = common.logger.RailTwinLogger.create()
+logger = railtwin_common.common.logger.RailTwinLogger.create()   # a logging.Logger
+RailTwinLogger.register_file_logger(Path("logs"))                 # optional: also into logs/<date>-RailTwin.log
 ```
-Please see splog settings for more information
 
 ### utilites & plotting
 1) RailTwin-Common comes with a tool to divide any supported infrastructure asset in subassets. This tool resides in utils track_divider.py

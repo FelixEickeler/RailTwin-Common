@@ -1,6 +1,6 @@
 import numpy as np
 import pandas
-from .augmentations import TA, TrueValue, Normalize
+from .augmentations import TA, TrueValue
 
 _allowed_headers = {"x": TA(np.float64, TrueValue()),
                     "y": TA(np.float64, TrueValue()),
@@ -8,8 +8,8 @@ _allowed_headers = {"x": TA(np.float64, TrueValue()),
                     "red": TA(np.uint8, TrueValue()),
                     "green": TA(np.uint8, TrueValue()),
                     "blue": TA(np.uint8, TrueValue()),
-                    "intensity": TA(np.float32, Normalize()),
-                    "echoWidth": TA(np.float64, Normalize()),
+                    "intensity": TA(np.float32, TrueValue()),
+                    "echoWidth": TA(np.float64, TrueValue()),
                     "returnNumber": TA(np.uint8, TrueValue()),
                     "numberOfReturns": TA(np.uint8, TrueValue()),
                     # "fullwaveIndex": TA(np.int, TrueValue()), #higher laz or helios, not implemented right now
@@ -24,7 +24,7 @@ _allowed_headers = {"x": TA(np.float64, TrueValue()),
                     "withheld": TA(bool, TrueValue()),
                     "scan_angle_rank": TA(np.int8, TrueValue()),
                     "user_data": TA(np.uint8, TrueValue()),
-                    "point_source_id": TA(np.uint8, TrueValue()),
+                    "point_source_id": TA(np.uint16, TrueValue()),
                     "object_id": TA(np.uint32, TrueValue()),
                     "scanner_id": TA(np.uint8, TrueValue()),
                     "above_ground": TA(np.float32, TrueValue()),
@@ -45,7 +45,7 @@ _header_mapping = {
     "gps_time": "gps_time",
     "scalar_intensity": "intensity",
     "scalar_object_id": "object_id",
-    "scalar_gpsTime" : "gps_time",
+    "scalar_gpstime": "gps_time",
     "scalar_scanner_id" : "scanner_id",
     "scalar_classification": "class",
     "scalar_component" : "component",
@@ -64,10 +64,8 @@ class HeaderGenerator:
 
     @staticmethod
     def determine_supertype(nptype):
-        if nptype == (np.float64 or np.float32 or np.float16): return "float"
-        if nptype == (np.int16 or np.int32 or np.int64):       return "int"
-        if nptype == (np.uint16 or np.uint32 or np.uint64):    return "uint"
-        return "nan"
+        kind = np.dtype(nptype).kind
+        return {"f": "float", "i": "int", "u": "uint"}.get(kind, "nan")
 
     def numpy_dtypes(self):
         _dtypes = []
@@ -97,7 +95,7 @@ class HeaderGenerator:
             self.mapping[_type] = true_name
             self.header[true_name] = _allowed_headers[true_name]
         else:
-            raise "This property is not in the set, if you need it add it to mappings or allowed headers !"
+            raise KeyError(f"Property '{_type}' is not in the set, if you need it add it to mappings or allowed headers !")
         return self
 
     @staticmethod

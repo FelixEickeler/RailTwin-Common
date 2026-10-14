@@ -1,43 +1,37 @@
-import spdlog as spd
+import logging
+import sys
+from datetime import datetime
 from pathlib import Path
-import datetime
-import os
+
+_FORMAT = "[%(asctime)s] [RT-Logger] [%(levelname)s] %(message)s"
 
 
-# Logger singelton
 class RailTwinLogger:
-    # fix for older spd version
-    if not os.name == "nt":
-        _logger_generators = {"console": lambda: spd.stderr_color_sink_mt()}
-    else:
-        _logger_generators = {"console": lambda: spd.stdout_sink_mt()}
-    instance = None
-
-    def __init__(self):
-        self.sinks = {}
-        for name, generator in RailTwinLogger._logger_generators.items():
-            self.sinks[name] = generator()
-        self.logger = spd.SinkLogger("RT-Logger", list(self.sinks.values()))
-        self.logger.flush()
-
-    def __del__(self):
-        self.logger.flush()
-
-    @staticmethod
-    def register_file_logger(path=Path("")):
-        if path.exists() and path.is_dir():
-            _logger_output_path = path
-        else:
-            _logger_output_path = Path(__file__).parent.parent.resolve() / "log"
-            RailTwinLogger.logger.info("Default Path selected")
-
-        RailTwinLogger._logger_generators["file"] = lambda: spd.FileLogger("RT-FileLogger", _logger_output_path /
-                                                                           "{}-{}".format(
-                                                                               datetime.today().strftime('%Y-%m-%d'),
-                                                                               "RailTwin_Reference_Run"))
+    """
+    Shared "RT-Logger" (Python logging). create() returns the logging.Logger; every module logs to the same one.
+    Output goes to stderr, register_file_logger() adds a log file.
+    """
+    name = "RT-Logger"
 
     @staticmethod
     def create():
-        if not RailTwinLogger.instance:
-            RailTwinLogger.instance = RailTwinLogger()
-        return RailTwinLogger.instance.logger
+        logger = logging.getLogger(RailTwinLogger.name)
+        if not logger.handlers:
+            handler = logging.StreamHandler(sys.stderr)
+            handler.setFormatter(logging.Formatter(_FORMAT))
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+            logger.propagate = False
+        return logger
+
+    @staticmethod
+    def register_file_logger(path=None):
+        """Also log into <path>/<date>-RailTwin.log (default: the log folder next to this package)."""
+        folder = Path(path) if path else Path(__file__).parent.parent.resolve() / "log"
+        folder.mkdir(parents=True, exist_ok=True)
+        log_file = folder / f"{datetime.today().strftime('%Y-%m-%d')}-RailTwin.log"
+        handler = logging.FileHandler(log_file)
+        handler.setFormatter(logging.Formatter(_FORMAT))
+        logger = RailTwinLogger.create()
+        logger.addHandler(handler)
+        return log_file

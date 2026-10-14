@@ -7,13 +7,13 @@
 import argparse
 from pathlib import Path
 
-from python.common.shared.common.io import registered_reader, create_csv_reader
-from python.common.shared.common.io.io_options import IOOptions
-from python.common.shared.common.io.pcs_formats import ProjectPTS
-from python.common.shared.common.io.read_router import scandir_supported
-from python.common.shared.common.logger import RailTwinLogger
-from python.common.shared.common.io import read
-from python.common.shared.common.io import write
+from railtwin_common.common.io import registered_reader, create_csv_reader
+from railtwin_common.common.io.io_options import IOOptions
+from railtwin_common.common.io.pcs_formats import ProjectPTS
+from railtwin_common.common.io.read_router import scandir_supported
+from railtwin_common.common.logger import RailTwinLogger
+from railtwin_common.common.io import read
+from railtwin_common.common.io import write
 
 
 logger = RailTwinLogger.create()

@@ -12,27 +12,24 @@ logger = RailTwinLogger.create()
 
 
 def feather_writer(output_path: Path, point_cloud: pandas.DataFrame, options: IOOptions):
-    if options.custom_index:
-        point_cloud.reset_index(inplace=True)
-    else:
-        point_cloud.reset_index(drop=True, inplace=True)
+    """Write a point cloud as .feather. The DataFrame of the caller is not changed."""
+    # custom_index: keep the index as column "index", otherwise it is dropped
+    point_cloud = point_cloud.reset_index(drop=not options.custom_index)
+    if options.custom_index and "index" not in point_cloud:
+        point_cloud = point_cloud.rename(columns={point_cloud.columns[0]: "index"})
     if not options.binary:
         logger.info("Feather files are always binary, please check your configuration")
 
     category_mapping, metadata = extract_metadata(point_cloud)
     new_metadata = {}
     if category_mapping != "{}":
-        new_metadata["class_mapping".encode()] = category_mapping.encode()
+        new_metadata[b"category_mapping"] = category_mapping.encode()
     if metadata != "{}":
-        new_metadata["metadata".encode()] = metadata.encode()
+        new_metadata[b"metadata"] = metadata.encode()
     if "offset" in point_cloud.attrs:
-        new_metadata["offset".encode()] = (json.dumps(point_cloud.attrs["offset"].tolist()).encode())
+        new_metadata[b"offset"] = json.dumps(point_cloud.attrs["offset"].tolist()).encode()
 
     arrow_table = pyarrow.Table.from_pandas(point_cloud)
-    arrow_metadata = arrow_table.schema.metadata
-    new_metadata.update(arrow_metadata)
+    new_metadata.update(arrow_table.schema.metadata or {})
     arrow_table = arrow_table.replace_schema_metadata(new_metadata)
     feather.write_feather(df=arrow_table, dest=output_path.as_posix(), compression=options.compression)
-
-    if options.custom_index:
-        point_cloud.set_index("index", drop=True)

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "railtwin-common"
+version = "0.2.0"
+description = "Point cloud IO and algorithms shared by the RailTwin projects"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.22",
+    "pandas>=1.4",
+    "plyfile>=0.7",
+    "laspy>=2.1",
+    "pyarrow>=10",
+]
+
+[project.optional-dependencies]
+algorithms = ["scipy", "scikit-learn"]
+plot = ["matplotlib", "plotly"]
+test = ["pytest"]
+
+# The repository root is the package railtwin_common (it is used as git submodule of that name)
+[tool.setuptools]
+package-dir = {"railtwin_common" = "."}
+packages = [
+    "railtwin_common",
+    "railtwin_common.common",
+    "railtwin_common.common.io",
+    "railtwin_common.common.io.reader",
+    "railtwin_common.common.io.writer",
+    "railtwin_common.common.logger",
+    "railtwin_common.algorithms",
+    "railtwin_common.utils",
+    "railtwin_common.utils.plot",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

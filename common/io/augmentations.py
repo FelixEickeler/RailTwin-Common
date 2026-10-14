@@ -1,13 +1,9 @@
 import numpy as np
-import pandas as pd
 
 
 def apply_augmentations(data, augmentations):
-    tmp = pd.options.mode.chained_assignment = None
-    pd.options.mode.chained_assignment = None
     for iname, augmentation in augmentations.items():
         data[iname] = augmentation.augment(data[iname])
-    pd.options.mode.chained_assignment = tmp
 
 
 class TypeAugmentation:
@@ -28,16 +24,19 @@ class TrueValue:
 
 
 class Normalize(TrueValue):
+    """Scale data to [-scale, scale] (by the largest absolute value). Each call uses only its own data."""
     def __init__(self, scale=1):
-        self._scale = scale
+        self.scale = scale
         self.original_min = 0
         self.original_max = 0
 
     def __call__(self, data: np.ndarray, target_type):
-
         self.original_min = np.min(data)
         self.original_max = np.max(data)
-        self._scale = self._scale / max(np.abs(self.original_min), np.abs(self.original_max))
+        largest = max(np.abs(self.original_min), np.abs(self.original_max))
+        if largest == 0:
+            raise TypeError("Normalising all-zero data creates a zero scaling !")
+        scale = self.scale / largest
 
         if np.issubdtype(target_type, np.integer):
             dtype_min = np.iinfo(target_type).min
@@ -45,12 +44,9 @@ class Normalize(TrueValue):
             # scale if its a uint
             if self.original_min < 0 and dtype_min == 0:
                 raise TypeError("Unsigned types cannot store negative numbers !")
-            self._scale /= dtype_max
+            scale /= dtype_max
 
-        if self._scale == np.inf:
-            raise TypeError("Type casting creates a zero scaling !")
-
-        return data * self._scale
+        return data * scale
 
 
 class UnpackBinary(TrueValue):
@@ -58,7 +54,8 @@ class UnpackBinary(TrueValue):
         self._mask = _mask
 
     def __call__(self, data: np.ndarray, target_type):
-        return ((data & self._mask) / (self._mask & -self._mask)).astype(np.int8)
+        mask = int(self._mask)
+        return ((data & mask) // (mask & -mask)).astype(np.int8)
 
 
 class Scale(TrueValue):

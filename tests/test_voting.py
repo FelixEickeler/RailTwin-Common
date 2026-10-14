@@ -8,7 +8,7 @@ import unittest
 
 import numpy as np
 import pandas
-from ..algorithms.voting import KnnVoting
+from railtwin_common.algorithms.voting import KnnVoting
 
 
 def create_testframe():

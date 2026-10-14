@@ -2,7 +2,6 @@ from ..header import HeaderGenerator
 from plyfile import PlyData
 from pathlib import Path
 import numpy as np
-import numpy.lib.recfunctions as np_rf
 import json
 import pandas
 from ...logger import RailTwinLogger
@@ -10,31 +9,31 @@ from ...logger import RailTwinLogger
 # connect to logging system
 logger = RailTwinLogger.create()
 
+_VERTEX_NAMES = ["vertex", "points", "point", "vertices"]
+
 
 def read_ply(input_path: Path):
+    """
+    Read a .ply point cloud into a DataFrame. Known properties get their internal name and type (header.py), other
+    properties are kept with their own name and type. Offset / metadata / categories are restored into attrs.
+    """
     point_header = HeaderGenerator()
     point_cloud_ply = PlyData.read(input_path)
-    scale = np.ones(3)
-    offset = np.zeros(3)
     metadata = {}
-    class_mapping = {}
+    category_mapping = {}
 
-    for i, ele in enumerate(point_cloud_ply.elements):
-        if ele.name in ["vertex", "points", "point", "vertices"]:
-            indexer = []
-            point_header.index = i
-            for col_name in ele.data.dtype.names:
+    vertices = None
+    for ele in point_cloud_ply.elements:
+        if ele.name in _VERTEX_NAMES:
+            vertices = ele.data
+            for col_name in vertices.dtype.names:
                 if col_name.lower() in point_header.possible_properties():
                     point_header.add(col_name)
-                    indexer.append(True)
-                else:
-                    indexer.append(False)
-
         if ele.name in ["shift", "offset"]:
             metadata["offset"] = ele.data
             metadata["original_offset_name"] = ele.name
-        # else:
-        #     metadata["offset"] = np.array([(4209.16699219, 8317.51757812, 160.86159516)], dtype=[('x', '<f8'), ('y', '<f8'), ('z', '<f8')])
+    if vertices is None:
+        raise ValueError(f"{input_path} has no vertex element (one of {_VERTEX_NAMES})")
 
     if any([c.find("dialect=tum_ply") > -1 for c in point_cloud_ply.comments]):
         for comment in point_cloud_ply.comments:
@@ -42,39 +41,35 @@ def read_ply(input_path: Path):
                 metadata_update = json.loads(comment[9:])
                 if "offset" in metadata_update:
                     if type(metadata_update["offset"]) is list:
-                        try:
-                            _f = np.array(metadata_update["offset"]).flatten()[:3]
-                            metadata_update["offset"] = np.array(tuple(_f), dtype=np.dtype([('x', '<f8'), ('y', '<f8'), ('z', '<f8')]))
-                        except Exception as e:
-                            raise e
-                            raise ValueError("Offset format is not readable")
+                        _f = np.array(metadata_update["offset"]).flatten()[:3]
+                        metadata_update["offset"] = np.array(tuple(_f), dtype=np.dtype(HeaderGenerator.offset()))
 
                     if "offset" in metadata:
                         if type(metadata_update["offset"]) is np.ndarray:
                             if np.linalg.norm(metadata["offset"].view((float, (3,))) - metadata_update['offset'].view((float, (3,)))) < 0.01:
                                 logger.info("Metadata was defined twice. Discarding json offset")
                             else:
-                                logger.warn(f"Two definitions of were defined. The datatype take priority over json: {metadata_update['offset']}")
+                                logger.warning(f"Two definitions of were defined. The datatype take priority over json: {metadata_update['offset']}")
                                 metadata_update["I0"] = metadata_update["offset"]
                             del metadata_update["offset"]
 
                 metadata.update(metadata_update)
             elif comment.startswith("categories:"):
-                class_mapping = json.loads(comment[11:])
+                category_mapping = json.loads(comment[11:])
 
-    # Points are needed we create df first
+    # Known properties with their internal name and type, the others as they are
     series = {}
-    for ply_name, internal_name, in point_header.mapping.items():
-        internal_type = point_header.header[internal_name].type
-        series[internal_name] = pandas.Series(point_cloud_ply.elements[point_header.index].data[ply_name], dtype=internal_type)
+    for ply_name in vertices.dtype.names:
+        if ply_name in point_header.mapping:
+            internal_name = point_header.mapping[ply_name]
+            series[internal_name] = pandas.Series(vertices[ply_name], dtype=point_header.header[internal_name].type)
+        else:
+            series[ply_name] = pandas.Series(vertices[ply_name])
     point_cloud = pandas.DataFrame(series)
     del series
 
-    # Exceptions
     if metadata:
         point_cloud.attrs["metadata"] = metadata
-
-    if class_mapping:
-        point_cloud.attrs["categories"] = class_mapping
-        point_cloud["class"].cat.rename_categories(class_mapping)
+    if category_mapping:
+        point_cloud.attrs["category_mapping"] = category_mapping
     return point_cloud

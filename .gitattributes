@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.ply -text
+*.las -text
+*.laz -text
+*.feather -text
