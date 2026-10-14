@@ -2,7 +2,7 @@ import numpy as np
 from pandas import DataFrame
 from .augmentations import apply_augmentations, TypeAugmentation, LocalSystem, TrueValue, GobalOffset
 from .io_options import IOOptions
-from .header import HeaderGenerator
+from .header import HeaderGenerator, as_offset
 from ..logger import RailTwinLogger
 
 logger = RailTwinLogger.create()
@@ -23,11 +23,8 @@ def _shift_xyz(dataframe: DataFrame, xyz_dtype, make_shift):
         logger.info("Point cloud was shifted by {} (offset)".format(offset))
         metadata["offset"] = offset
     else:
-        # The offset is stored as structured array [(x, y, z)] (or a list from older metadata)
-        existing = np.asarray(metadata["offset"])
-        existing = existing.view("3f8").reshape(3) if existing.dtype.names else existing.astype("f8").reshape(3)
-        metadata["offset"] = np.array([tuple(existing + offset.view("3f8").reshape(3))],
-                                      dtype=HeaderGenerator.offset())
+        existing = as_offset(metadata["offset"]).view("3f8").reshape(3)
+        metadata["offset"] = as_offset(existing + offset.view("3f8").reshape(3))
 
 
 def data_augmentations(dataframe: DataFrame, options: IOOptions):

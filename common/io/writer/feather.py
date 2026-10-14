@@ -1,4 +1,3 @@
-import json
 import pandas
 import pyarrow
 from pyarrow import feather
@@ -26,8 +25,6 @@ def feather_writer(output_path: Path, point_cloud: pandas.DataFrame, options: IO
         new_metadata[b"category_mapping"] = category_mapping.encode()
     if metadata != "{}":
         new_metadata[b"metadata"] = metadata.encode()
-    if "offset" in point_cloud.attrs:
-        new_metadata[b"offset"] = json.dumps(point_cloud.attrs["offset"].tolist()).encode()
 
     arrow_table = pyarrow.Table.from_pandas(point_cloud)
     new_metadata.update(arrow_table.schema.metadata or {})

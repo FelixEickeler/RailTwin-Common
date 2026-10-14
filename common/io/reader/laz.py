@@ -21,6 +21,13 @@ def read_laz(input_path: Path):
     las = laspy.read(input_path)
     if las.point_format.id >= 6:
         raise NotImplementedError("Only LAS point formats 0-5 are supported")
+    if len(las.points) == 0:
+        logger.warning(f"{input_path} has no points")
+        return DataFrame({"x": np.zeros(0, np.float32), "y": np.zeros(0, np.float32), "z": np.zeros(0, np.float32)})
+
+    def at_default(values, default):
+        """Constant over the whole cloud at the default value: not worth a column."""
+        return values.size > 0 and values[0] == default and np.all(values == default)
 
     # World coordinates (laspy applies scale and offset), then centred: float32 is not precise enough for them
     point_cloud = DataFrame({"x": np.asarray(las.x, dtype=np.float64),
@@ -30,9 +37,10 @@ def read_laz(input_path: Path):
     base_options.xyz_accuracy = np.float32
     data_augmentations(point_cloud, base_options)
 
-    # Fill in scalar fields
-    if np.unique(las.intensity).size > 1:
-        point_cloud["intensity"] = TA(np.float32, Normalize()).augment(np.asarray(las.intensity))
+    # Intensity, normalised by its largest value
+    intensity = np.asarray(las.intensity)
+    if not at_default(intensity, 0):
+        point_cloud["intensity"] = TA(np.float32, Normalize()).augment(intensity)
 
     # Bit fields: (las name, internal name, dtype, default value)
     for las_name, name, dtype, default in [("return_number", "returnNumber", np.uint8, 1),
@@ -41,15 +49,17 @@ def read_laz(input_path: Path):
                                            ("edge_of_flight_line", "edge_of_flight_line", bool, 0),
                                            ("classification", "class", np.uint8, 0),
                                            ("synthetic", "synthetic", np.uint8, 0),
-                                           ("key_point", "key_point", np.uint8, 0)]:
+                                           ("key_point", "key_point", np.uint8, 0),
+                                           ("withheld", "withheld", bool, 0)]:
         field = las[las_name]
         values = TA(dtype, UnpackBinary(field.bit_mask)).augment(field.array)
-        if np.unique(values).size > 1 or values[0] != default:
+        if not at_default(values, default):
             point_cloud[name] = values
 
-    for name, dtype in [("user_data", np.uint8), ("point_source_id", np.uint16)]:
-        if np.unique(las[name]).size > 1:
-            point_cloud[name] = np.asarray(las[name], dtype=dtype)
+    for name, dtype in [("scan_angle_rank", np.int8), ("user_data", np.uint8), ("point_source_id", np.uint16)]:
+        values = np.asarray(las[name], dtype=dtype)
+        if not at_default(values, 0):
+            point_cloud[name] = values
 
     # Formats 1, 3, 4, 5: GPS time; 2, 3, 5: colour
     dimensions = set(las.point_format.dimension_names)

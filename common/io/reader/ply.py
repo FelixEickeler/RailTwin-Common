@@ -1,4 +1,4 @@
-from ..header import HeaderGenerator
+from ..header import HeaderGenerator, as_offset
 from plyfile import PlyData
 from pathlib import Path
 import numpy as np
@@ -30,7 +30,7 @@ def read_ply(input_path: Path):
                 if col_name.lower() in point_header.possible_properties():
                     point_header.add(col_name)
         if ele.name in ["shift", "offset"]:
-            metadata["offset"] = ele.data
+            metadata["offset"] = as_offset(ele.data)
             metadata["original_offset_name"] = ele.name
     if vertices is None:
         raise ValueError(f"{input_path} has no vertex element (one of {_VERTEX_NAMES})")
@@ -40,18 +40,16 @@ def read_ply(input_path: Path):
             if comment.startswith("metadata:"):
                 metadata_update = json.loads(comment[9:])
                 if "offset" in metadata_update:
-                    if type(metadata_update["offset"]) is list:
-                        _f = np.array(metadata_update["offset"]).flatten()[:3]
-                        metadata_update["offset"] = np.array(tuple(_f), dtype=np.dtype(HeaderGenerator.offset()))
-
+                    metadata_update["offset"] = as_offset(metadata_update["offset"])
                     if "offset" in metadata:
-                        if type(metadata_update["offset"]) is np.ndarray:
-                            if np.linalg.norm(metadata["offset"].view((float, (3,))) - metadata_update['offset'].view((float, (3,)))) < 0.01:
-                                logger.info("Metadata was defined twice. Discarding json offset")
-                            else:
-                                logger.warning(f"Two definitions of were defined. The datatype take priority over json: {metadata_update['offset']}")
-                                metadata_update["I0"] = metadata_update["offset"]
-                            del metadata_update["offset"]
+                        # The offset element takes priority over the copy in the json comment
+                        difference = metadata["offset"].view("3f8") - metadata_update["offset"].view("3f8")
+                        if np.linalg.norm(difference) < 0.01:
+                            logger.info("Metadata was defined twice. Discarding json offset")
+                        else:
+                            logger.warning(f"Two different offsets, the offset element is used: {metadata_update['offset']}")
+                            metadata_update["I0"] = metadata_update["offset"]
+                        del metadata_update["offset"]
 
                 metadata.update(metadata_update)
             elif comment.startswith("categories:"):

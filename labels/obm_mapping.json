@@ -4,7 +4,7 @@
         "source": "RailTwin-Virtualizer python/labeling/mappings/ecppm2022_simple_mapping.json",
         "created": "2022-05-25, 15:50:00",
         "last_update": "2026-10-14",
-        "changes": "unique component ids: system-post 61, elevator 62, duct 63; 'sign' maps to 'stuff' (was 'stuff,')"
+        "changes": "unique component ids: system-post 61, elevator 62, duct 63; removed the systems entries 'sign', 'ignored', 'building' (not components)"
     },
     "systems": {
         "cantilever": "catenary-mast",
@@ -29,7 +29,6 @@
         "sign-no-people": "stuff",
         "sign-station": "stuff",
         "sign-generic": "stuff",
-        "sign": "stuff",
         "station-building": "stuff",
         "shed": "stuff",
         "house": "stuff",
@@ -51,13 +50,11 @@
         "escape-door": "noise-barrier",
         "ground": "stuff",
         "subgrade": "rail-bed",
-        "ignored": "instance",
         "duct": "rail-bed",
         "elevator": "stuff",
         "unclassified": "instance",
         "control-box": "stuff",
-        "noise": "instance",
-        "building": "stuff"
+        "noise": "instance"
     },
     "system_labels": {
         "instance": 0,

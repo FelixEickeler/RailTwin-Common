@@ -208,3 +208,40 @@ def test_logger_file(tmp_path):
         for handler in [h for h in logger.handlers if isinstance(h, logging.FileHandler)]:
             logger.removeHandler(handler)
             handler.close()
+
+
+def test_offset_has_one_form_in_every_format(tmp_path):
+    from railtwin_common.common.io.header import HeaderGenerator
+    cloud = utm_cloud(20)
+    write(tmp_path / "a.ply", cloud, options=IOOptions.only_localization())
+    previous = "a.ply"
+    for name in ["b.feather", "c.ply", "d.ply", "e.feather", "f.feather", "g.ply"]:
+        back = read(tmp_path / previous)
+        offset = back.attrs["metadata"]["offset"]
+        assert offset.dtype == np.dtype(HeaderGenerator.offset()) and offset.shape == (1,), name
+        xyz = back[["x", "y", "z"]].to_numpy(np.float64) + offset.view("3f8")
+        np.testing.assert_allclose(xyz, cloud[["x", "y", "z"]].to_numpy(), atol=1e-3)
+        write(tmp_path / name, back, options=IOOptions.do_nothing())
+        previous = name
+
+
+def test_offset_forms():
+    from railtwin_common.common.io.header import HeaderGenerator, as_offset
+    expected = np.array([(1.0, 2.0, 3.0)], dtype=HeaderGenerator.offset())
+    for value in ([1, 2, 3], [[1, 2, 3]], (1, 2, 3), expected, expected[0], expected.reshape(1, 1)):
+        result = as_offset(value)
+        assert result.shape == (1,) and result.tolist() == expected.tolist()
+    with pytest.raises(ValueError):
+        as_offset([1, 2])
+
+
+def test_ply_categorical_columns(tmp_path):
+    cloud = utm_cloud(6)
+    cloud["class"] = pandas.Categorical(["rail", "mast", "rail", "wire", "mast", "rail"])
+    cloud["kind"] = pandas.Categorical(["a", "b", "a", "a", "b", "a"])
+    ply_writer(tmp_path / "cat.ply", cloud, options=IOOptions.do_nothing())
+    back = read(tmp_path / "cat.ply")
+    mapping = back.attrs["category_mapping"]
+    names = {i: c for c, i in mapping.items()}
+    assert [names[i] for i in back["class"]] == list(cloud["class"])
+    assert [back.attrs["metadata"]["categories"]["kind"][i] for i in back["kind"]] == list(cloud["kind"])

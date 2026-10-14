@@ -115,3 +115,20 @@ class HeaderGenerator:
     @staticmethod
     def offset():
         return [("x", "<f8"), ("y", "<f8"), ("z", "<f8")]
+
+
+def as_offset(value):
+    """
+    An offset in any form (structured array of any shape, [x, y, z], [[x, y, z]], tuple) as the one form every reader
+    returns and every writer takes: a structured array [(x, y, z)] of shape (1,), dtype HeaderGenerator.offset().
+    """
+    value = np.asarray(value)
+    if value.dtype.names:
+        first = value.reshape(-1)[0]
+        xyz = [float(first[name]) for name in value.dtype.names[:3]]
+    else:
+        xyz = value.astype("f8").reshape(-1)[:3].tolist()
+    if len(xyz) != 3:
+        raise ValueError(f"An offset needs x, y and z: {value!r}")
+    return np.array([tuple(xyz)], dtype=HeaderGenerator.offset())
+

@@ -63,3 +63,34 @@ class TestReader(unittest.TestCase):
         balance_pointcloud(val)
         diff = data.compare(val)
         self.assertTrue(diff.empty)
+
+
+def _write_las(path, n, **fields):
+    import laspy
+    header = laspy.LasHeader(point_format=1, version="1.2")
+    header.scales = [0.001, 0.001, 0.001]
+    header.offsets = [3420000.0, 5330000.0, 500.0]
+    las = laspy.LasData(header)
+    rng = np.random.default_rng(0)
+    las.x = 3420000.0 + rng.uniform(0, 10, n)
+    las.y = 5330000.0 + rng.uniform(0, 10, n)
+    las.z = 500.0 + rng.uniform(0, 1, n)
+    for name, value in fields.items():
+        las[name] = np.full(n, value)
+    las.write(str(path))
+
+
+def test_las_keeps_constant_fields_at_non_default_values(tmp_path):
+    from railtwin_common.common.io.reader.laz import read_laz
+    _write_las(tmp_path / "a.las", 50, intensity=500, point_source_id=7, user_data=3, withheld=1, scan_angle_rank=-5)
+    cloud = read_laz(tmp_path / "a.las")
+    assert (cloud["point_source_id"] == 7).all() and (cloud["user_data"] == 3).all()
+    assert (cloud["intensity"] == 1.0).all() and cloud["withheld"].all() and (cloud["scan_angle_rank"] == -5).all()
+    # Fields at their default are left out
+    assert "class" not in cloud and "key_point" not in cloud
+
+
+def test_las_without_points(tmp_path):
+    from railtwin_common.common.io.reader.laz import read_laz
+    _write_las(tmp_path / "empty.las", 0)
+    assert len(read_laz(tmp_path / "empty.las")) == 0

@@ -64,14 +64,20 @@ class QuadIndex:
         cut_x = pandas.cut(x=points["x"], bins=x_bins_bounds, labels=x_labels, include_lowest=True)
         cut_y = pandas.cut(x=points["y"], bins=y_bins_bounds, labels=y_labels, include_lowest=True)
 
-        # 5 create hashes, sort by them, and group again
-        points["coord_hash"] = cut_x.to_numpy() * 1e12 + cut_y.to_numpy() * 1e6 + (1e6 + points["x"].to_numpy())
+        # 5. sort the points by cell (x cell, then y cell, then x inside the cell), in place
+        nx, ny = len(x_labels), len(y_labels)
+        cell = cut_x.cat.codes.to_numpy().astype(np.int64) * ny + cut_y.cat.codes.to_numpy().astype(np.int64)
+        order = np.lexsort((points["x"].to_numpy(), cell))
+        rank = np.empty(len(order), dtype=np.int64)
+        rank[order] = np.arange(len(order))
+        points["coord_hash"] = rank
         points.sort_values(by=["coord_hash"], inplace=True, ignore_index=True)
+        if debug:
+            points["coord_hash"] = cell[order]  # cell id of every point
         # The grid holds the end of every cell (= start of the next cell (x, y + 1)), see get_begin_end
-        cell_ends = [x * 1e12 + (y + 1) * 1e6 + 1e6 for x in x_labels for y in y_labels]
         qi = QuadIndex()
         qi._sorted_points_ref = points
-        qi._index_grid = np.searchsorted(points["coord_hash"], cell_ends, side="left").reshape([len(x_labels), len(y_labels)])
+        qi._index_grid = np.cumsum(np.bincount(cell, minlength=nx * ny)).reshape([nx, ny])
         qi.cells = qi._index_grid.size
         # z range of the cloud (0 for 2D points)
         iz_0 = distance * np.floor(points["z"].min() / distance) if "z" in points else 0.0

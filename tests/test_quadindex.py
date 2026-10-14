@@ -42,6 +42,22 @@ class TestQuadindex(unittest.TestCase):
         self.assertAlmostEqual(all_points_in_cell_2.iloc[0]["x"], 1.2)
         self.assertAlmostEqual(all_points_in_cell_2.iloc[0]["y"], 0.3)
 
+    def test_cells_for_georeferenced_and_negative_coordinates(self):
+        rng = np.random.default_rng(0)
+        for x0, y0 in ((3420000.0, 5330000.0), (-5.0, -5.0), (0.0, 0.0)):
+            points = pandas.DataFrame({"x": x0 + rng.uniform(0, 10, 2000), "y": y0 + rng.uniform(0, 10, 2000),
+                                   "z": rng.uniform(0, 1, 2000)})
+            quad = QuadIndex.create_quadindex(points, distance=1)
+            seen = 0
+            for row, col, cells in quad:
+                cell = quad._sorted_points_ref[cells]
+                seen += len(cell)
+                # pandas.cut cells are right-closed, the first one includes its lower bound
+                lo_x, lo_y = quad.min[0] + row, quad.min[1] + col
+                self.assertTrue(((cell["x"] >= lo_x - 1e-9) & (cell["x"] <= lo_x + 1 + 1e-9)).all(), (x0, row, col))
+                self.assertTrue(((cell["y"] >= lo_y - 1e-9) & (cell["y"] <= lo_y + 1 + 1e-9)).all(), (y0, row, col))
+            self.assertEqual(seen, 2000)
+
 
 if __name__ == '__main__':
     unittest.main()

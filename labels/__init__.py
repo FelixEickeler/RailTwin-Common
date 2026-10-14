@@ -28,6 +28,7 @@ an input dataset -> consolidated components -> training classes.
     ids = chain.remap(input_ids)                            # chain.level: the classes at the end
 """
 import json
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -84,15 +85,20 @@ class LabelMapping:
                                                  level.get("default"), list(level.get("ignored", [])))
         for level in self.levels.values():
             _check_unique(level.labels, f"{name} level {level.name}")
+            # A typo in a class name must not silently send components to the default class
             unknown = [c for c in level.ignored + ([level.default] if level.default else []) if c not in level.labels]
+            unknown += sorted({c for c in level.components.values() if c not in level.labels})
             if unknown:
                 raise ValueError(f"Mapping {name}, level {level.name}: unknown classes {unknown}")
+            dead = [c for c in level.components if c not in self.component_labels]
+            if dead:
+                warnings.warn(f"Mapping {name}, level {level.name}: {dead} are not components, their entries are unused")
 
     @classmethod
     def load(cls, path="obm_mapping.json"):
-        """A mapping file: a path, or the name of a file in railtwin_common/labels."""
+        """A mapping file: a bare file name is looked up in railtwin_common/labels first, a path is used as given."""
         path = Path(path)
-        if not path.exists():
+        if path.parent == Path(".") and (MAPPING_FOLDER / path).exists():
             path = MAPPING_FOLDER / path
         with open(path, encoding="utf-8") as file:
             return cls(json.load(file), name=path.stem)
@@ -122,7 +128,7 @@ class LabelMapping:
     def remap(self, component_ids, level="system"):
         """Class ids of a level for an array of component ids (any shape)."""
         table = self.lookup_table(level)
-        component_ids = np.asarray(component_ids).astype(np.int64)
+        component_ids = _as_ids(component_ids)
         known = np.isin(component_ids, list(self.component_labels.values()))
         if not known.all():
             raise ValueError(f"Component ids {np.unique(component_ids[~known])[:10].tolist()} are not in "
@@ -156,9 +162,13 @@ class LabelChain:
 
     @classmethod
     def load(cls, steps, level="system"):
-        """steps: a mapping file (with level), or a list of [mapping file, level] pairs."""
+        """steps: a mapping file (with level), one [mapping file, level] pair, or a list of such pairs."""
         if isinstance(steps, (str, Path)):
             steps = [(steps, level)]
+        elif len(steps) == 2 and all(isinstance(step, (str, Path)) for step in steps):
+            steps = [steps]
+        if any(len(step) != 2 for step in steps):
+            raise ValueError(f"Label chain steps must be [mapping file, level] pairs: {steps}")
         return cls([(LabelMapping.load(path), step_level) for path, step_level in steps])
 
     def lookup_table(self):
@@ -177,11 +187,22 @@ class LabelChain:
     def remap(self, input_ids):
         """Class ids at the end of the chain for an array of input ids (any shape)."""
         table = self.lookup_table()
-        input_ids = np.asarray(input_ids).astype(np.int64)
+        input_ids = _as_ids(input_ids)
         known = np.isin(input_ids, list(self.component_labels.values()))
         if not known.all():
             raise ValueError(f"Ids {np.unique(input_ids[~known])[:10].tolist()} are not in {self.steps[0][0].name}")
         return table[input_ids]
+
+
+def _as_ids(ids):
+    """int64 ids; fractional values are an error, not rounded."""
+    ids = np.asarray(ids)
+    if ids.dtype.kind == "f":
+        if not np.all(ids == np.round(ids)):
+            raise ValueError("Label ids must be integers")
+    elif ids.dtype.kind not in "iub":
+        raise ValueError(f"Label ids must be integers, got {ids.dtype}")
+    return ids.astype(np.int64)
 
 
 def _check_unique(labels, what):

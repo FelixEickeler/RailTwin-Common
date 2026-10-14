@@ -100,3 +100,35 @@ def test_chain_classes_must_be_next_components(obm):
                                                                        "default": "no-such-component"}}})
     with pytest.raises(KeyError, match="no-such-component"):
         LabelChain([(bad, "x"), (obm, "system")])
+
+
+def test_typo_in_a_level_is_an_error():
+    with pytest.raises(ValueError, match="rial"):
+        LabelMapping({"component_labels": {"rail": 1}, "system_labels": {"instance": 0, "rail": 1},
+                      "systems": {"rail": "rial"}})
+
+
+def test_entries_for_unknown_components_warn():
+    with pytest.warns(UserWarning, match="sign"):
+        LabelMapping({"component_labels": {"rail": 1}, "system_labels": {"instance": 0, "rail": 1},
+                      "systems": {"sign": "rail"}})
+
+
+def test_obm_mapping_has_no_dead_entries():
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        LabelMapping.load()
+
+
+def test_fractional_ids_are_an_error(obm):
+    with pytest.raises(ValueError):
+        obm.remap([16.7])
+    assert obm.remap(np.array([16.0]), "component")[0] == 16
+
+
+def test_chain_from_one_pair():
+    pair = LabelChain.load(("obm_mapping.json", "system"))
+    assert pair.name == LabelChain.load("obm_mapping.json", "system").name
+    with pytest.raises(ValueError):
+        LabelChain.load([["obm_mapping.json"]])

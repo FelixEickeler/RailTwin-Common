@@ -1,9 +1,8 @@
 from pyarrow import feather
-from ..header import HeaderGenerator
+from ..header import as_offset
 from ...logger import RailTwinLogger
 from pathlib import Path
 import json
-import numpy as np
 
 # connect to logging system
 logger = RailTwinLogger.create()
@@ -19,11 +18,13 @@ def read_feather(input_path: Path):
         if key in schema_metadata:
             point_cloud.attrs["category_mapping"] = json.loads(schema_metadata[key])
             break
-    if b"metadata" in schema_metadata:
-        point_cloud.attrs["metadata"] = json.loads(schema_metadata[b"metadata"])
-    if b"offset" in schema_metadata:
-        offset = np.array(json.loads(schema_metadata[b"offset"]), dtype="f8").reshape(1, 3)
-        point_cloud.attrs["offset"] = offset.view(HeaderGenerator.offset()).reshape(1)
+    metadata = json.loads(schema_metadata[b"metadata"]) if b"metadata" in schema_metadata else {}
+    if b"offset" in schema_metadata and "offset" not in metadata:
+        metadata["offset"] = json.loads(schema_metadata[b"offset"])  # written by older versions
+    if "offset" in metadata:
+        metadata["offset"] = as_offset(metadata["offset"])
+    if metadata:
+        point_cloud.attrs["metadata"] = metadata
 
     if "index" in point_cloud:
         point_cloud = point_cloud.set_index("index")
