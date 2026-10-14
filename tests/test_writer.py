@@ -173,6 +173,13 @@ def test_write_router_and_scandir_ignore_case(tmp_path):
     assert found == ["A.PLY", "b.feather"]
 
 
+def test_str_paths(tmp_path):
+    cloud = utm_cloud(5)
+    write(str(tmp_path / "a.ply"), cloud, options=IOOptions.do_nothing())
+    np.testing.assert_array_equal(read(str(tmp_path / "a.ply"))["x"], cloud["x"])
+    assert len(scandir_supported(str(tmp_path))) == 1
+
+
 def test_normalize_does_not_keep_state():
     augmentation = TA(np.float32, Normalize())
     data = np.array([0.0, 50.0, 100.0])

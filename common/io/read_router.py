@@ -11,12 +11,13 @@ logger = RailTwinLogger.create()
 registered_reader = {".las": read_laz, ".laz": read_laz, ".ply": read_ply, ".feather": read_feather}
 
 
-def read_file(input_path: Path):
+def read_file(input_path):
     """
     Will read a point cloud and the metadata of a supported format. The formats that are supported are (or must be) added to registered_reader
-    :param input_path
+    :param input_path: Path or str
     :return:
     """
+    input_path = Path(input_path)
     if not input_path.exists():
         raise FileNotFoundError("The provided input file, does not exists")
     filetype = input_path.suffix.lower()
@@ -27,6 +28,6 @@ def read_file(input_path: Path):
     return xyz
 
 
-def scandir_supported(src: Path):
-    """All files below src with a supported suffix (any case, e.g. .ply and .PLY)."""
-    return [f for f in src.glob("**/*") if f.is_file() and f.suffix.lower() in registered_reader]
+def scandir_supported(src):
+    """All files below src (Path or str) with a supported suffix (any case, e.g. .ply and .PLY)."""
+    return [f for f in Path(src).glob("**/*") if f.is_file() and f.suffix.lower() in registered_reader]

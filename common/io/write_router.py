@@ -10,8 +10,9 @@ logger = RailTwinLogger.create()
 registered_writer = {".ply": ply_writer, ".feather": feather_writer}
 
 
-def write(output_path: Path, point_cloud: pandas.DataFrame, options=None):
+def write(output_path, point_cloud: pandas.DataFrame, options=None):
     options = IOOptions.default() if options is None else options
+    output_path = Path(output_path)
     filetype = output_path.suffix.lower()
     if filetype in registered_writer:
         xyz = registered_writer[filetype](output_path, point_cloud, options)
