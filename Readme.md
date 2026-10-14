@@ -56,13 +56,21 @@ Point clouds keep fine component labels; a mapping turns them into the classes a
 `labels/obm_mapping.json` (from RailTwin-Virtualizer `ecppm2022_simple_mapping.json`, component ids made unique) has
 64 `component_labels`, the `systems` they belong to, `system_labels`, and the names used in design models
 (`synthetic`) and annotations (`physical`).
+Each mapping has the levels `component` (the components themselves) and `system` (`systems` / `system_labels`;
+components without a system go to `instance`, which is ignored). More levels can be defined in the file:
+`"levels": {"<name>": {"labels": {class: id}, "components": {component: class}, "default": class, "ignored": [class]}}`.
 ```python
-from railtwin_common.labels import LabelMapping
-mapping = LabelMapping.load()                                    # labels/obm_mapping.json, or any path
-system_ids = mapping.to_systems(component_ids, default="instance") # numpy lookup; default for unmapped components
-mapping.component_id("Schwelle", "synthetic")                     # id of a source name
+from railtwin_common.labels import LabelChain, LabelMapping
+mapping = LabelMapping.load()                       # labels/obm_mapping.json, or any path
+level = mapping.level("system")                     # level.labels, level.names, level.ignored
+ids = mapping.remap(component_ids, "system")        # numpy lookup, any shape
+mapping.component_id("Schwelle", "synthetic")        # id of a source name
+
+# Chain: the classes of one step are the components of the next step (by name)
+chain = LabelChain.load([["input_mapping.json", "consolidated"], ["obm_mapping.json", "system"]])
+ids = chain.remap(input_ids)                        # chain.level: classes at the end
 ```
-Without `default`, `to_systems` raises and lists the components that have no system.
+A level without `default` raises and lists the components that have no class.
 
 ### utilites & plotting
 1) RailTwin-Common comes with a tool to divide any supported infrastructure asset in subassets. This tool resides in utils track_divider.py
