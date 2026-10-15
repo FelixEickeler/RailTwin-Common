@@ -4,9 +4,8 @@ import numpy as np
 import pandas
 from plyfile import PlyElement, PlyData
 
-from ..data_shaping import data_augmentations
 from ..header import as_offset
-from ..writer._common import extract_metadata
+from ..writer._common import extract_metadata, shaped_copy
 from ...logger import RailTwinLogger
 
 logger = RailTwinLogger.create()
@@ -29,10 +28,7 @@ def _ply_dtype(name, column):
 
 def ply_writer(output_path: Path, point_cloud: pandas.DataFrame, options):
     """Write a point cloud as .ply. The DataFrame of the caller is not changed."""
-    point_cloud = point_cloud.copy()
-    point_cloud.attrs = {key: (value.copy() if isinstance(value, dict) else value)
-                         for key, value in point_cloud.attrs.items()}
-    data_augmentations(point_cloud, options)
+    point_cloud = shaped_copy(point_cloud, options)
 
     # PLY has no categorical type: write the codes, the categories go into the metadata ("class": category_mapping)
     for name in [n for n in point_cloud.columns if isinstance(point_cloud[n].dtype, pandas.CategoricalDtype)]:

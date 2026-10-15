@@ -4,6 +4,8 @@ from json import JSONEncoder
 
 import numpy as np
 
+from ..data_shaping import data_augmentations
+
 
 class RailTwinEncoder(JSONEncoder):
     def default(self, obj):
@@ -12,6 +14,18 @@ class RailTwinEncoder(JSONEncoder):
         if isinstance(obj, np.floating):
             return float(obj)
         return JSONEncoder.default(self, obj)
+
+
+def shaped_copy(point_cloud, options):
+    """
+    Copy of the point cloud shaped by the options (local system, shift, xyz dtype, intensity; see data_augmentations).
+    Every writer writes such a copy, so the DataFrame of the caller is not changed.
+    """
+    point_cloud = point_cloud.copy()
+    point_cloud.attrs = {key: (copy.deepcopy(value) if isinstance(value, dict) else value)
+                         for key, value in point_cloud.attrs.items()}
+    data_augmentations(point_cloud, options)
+    return point_cloud
 
 
 def extract_metadata(point_cloud):

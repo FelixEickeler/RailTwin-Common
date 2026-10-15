@@ -138,6 +138,39 @@ def test_feather_round_trip(tmp_path, cube):
     assert "metadata" in back.attrs
 
 
+def test_feather_local_system_round_trip(tmp_path):
+    # Georeferenced float64 -> local float32 + offset, as for .ply
+    cloud = utm_cloud()
+    feather_writer(tmp_path / "local.feather", cloud, options=IOOptions.default())
+    back = read(tmp_path / "local.feather")
+    assert back["x"].dtype == np.float32
+    offset = back.attrs["metadata"]["offset"].view("3f8").reshape(3)
+    xyz = back[["x", "y", "z"]].to_numpy(np.float64)
+    assert np.abs(xyz).max() < 50
+    np.testing.assert_allclose(xyz + offset, cloud[["x", "y", "z"]].to_numpy(), atol=1e-4)
+
+
+def test_feather_shift_system_adds_to_the_offset(tmp_path):
+    cloud = utm_cloud()
+    cloud.attrs["metadata"] = {"offset": [1.0, 2.0, 3.0]}
+    options = IOOptions.do_nothing()
+    options.shift_system = [691000.0, 5334000.0, 0.0]
+    feather_writer(tmp_path / "shift.feather", cloud, options=options)
+    back = read(tmp_path / "shift.feather")
+    assert back["x"].dtype == np.float64
+    np.testing.assert_allclose(back.attrs["metadata"]["offset"].view("3f8").reshape(3), [691001.0, 5334002.0, 3.0])
+    np.testing.assert_allclose(back["x"], cloud["x"] - 691000.0)
+
+
+def test_feather_do_nothing_keeps_float64_coordinates(tmp_path):
+    cloud = utm_cloud()
+    feather_writer(tmp_path / "utm.feather", cloud, options=IOOptions.do_nothing())
+    back = read(tmp_path / "utm.feather")
+    assert back["x"].dtype == np.float64
+    assert "offset" not in back.attrs.get("metadata", {})
+    np.testing.assert_array_equal(back[["x", "y", "z"]].to_numpy(), cloud[["x", "y", "z"]].to_numpy())
+
+
 def test_feather_custom_index(tmp_path):
     cloud = utm_cloud(10)
     cloud.index = np.arange(100, 110)

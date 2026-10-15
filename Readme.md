@@ -21,6 +21,9 @@ This is a unified interface that can be used in your programming !
 The writers never change the dataframe they are given. Coordinates keep their type unless `xyz_accuracy` is set
 (e.g. `"<f4"`): float32 is not precise enough for georeferenced coordinates, use `local=True` (centred, the shift
 is stored as `attrs["metadata"]["offset"]`) or keep float64.
+Both writers (`.ply`, `.feather`) apply the options in the same way. `write()` without options uses
+`IOOptions.default()`: local system, float32 coordinates, normalized intensity. `IOOptions.do_nothing()` writes
+the dataframe as it is.
 
 Normally operations should be carried out on the data to normalize it. See the options in IOOperations and header.py !
 

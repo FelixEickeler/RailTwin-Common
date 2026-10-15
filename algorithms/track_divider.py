@@ -91,7 +91,7 @@ def track_divider(src, dst, length, out_options: IOOptions, in_options: IOOption
         dst.mkdir(exist_ok=True, parents=True)
         base_name = src.stem
         if not out_options.filetype:
-            out_options = src.suffix
+            out_options.filetype = src.suffix
     else:
         base_name = dst.stem
         out_options.filetype = dst.suffix
